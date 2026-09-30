@@ -1,17 +1,70 @@
 import React, { FormEvent, useState } from "react";
-import type { Page } from "../App";
 
 interface ContatoProps {
-  navigate: (page: Page) => void;
+  navigate?: (page: any) => void;
 }
 
-function Contato({ navigate }: ContatoProps) {
+function Contato(_props: ContatoProps) {
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    // Deixa o FormSubmit processar o formulário normalmente
-    // e apenas registra o envio no estado da página.
-    setSent(true);
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    // Impede o envio nativo do navegador: antes, a tela de sucesso
+    // trocava o formulário na hora e o envio nunca chegava a acontecer.
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const data = new FormData(form);
+
+    setSending(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        "https://formsubmit.co/ajax/contato.permaneser@gmail.com",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            _subject: "Nova mensagem — PermaneSER",
+            _captcha: "false",
+            _template: "table",
+            name: String(data.get("name") || ""),
+            email: String(data.get("email") || ""),
+            subject: String(data.get("subject") || ""),
+            message: String(data.get("message") || ""),
+          }),
+        }
+      );
+
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result || String(result.success) !== "true") {
+        console.error("Erro FormSubmit:", response.status, result);
+        throw new Error(
+          "Não conseguimos enviar sua mensagem. Tente novamente ou escreva para contato.permaneser@gmail.com."
+        );
+      }
+
+      form.reset();
+      setSent(true);
+    } catch (err) {
+      console.error(err);
+
+      if (err instanceof Error && err.message.startsWith("Não conseguimos")) {
+        setError(err.message);
+      } else {
+        setError(
+          "Não conseguimos enviar sua mensagem. Verifique sua conexão e tente novamente."
+        );
+      }
+    } finally {
+      setSending(false);
+    }
   }
 
   if (sent) {
@@ -157,9 +210,12 @@ function Contato({ navigate }: ContatoProps) {
           <button
             type="submit"
             className="form-submit"
+            disabled={sending}
           >
-            Enviar mensagem →
+            {sending ? "Enviando..." : "Enviar mensagem →"}
           </button>
+
+          {error && <p className="form-error">{error}</p>}
         </form>
       </section>
     </main>
